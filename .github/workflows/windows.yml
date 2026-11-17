@@ -1,0 +1,33 @@
+name: Windows build and smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      RUSTFLAGS: "-C target-feature=+crt-static"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests and build Windows x64
+        shell: pwsh
+        run: |
+          cargo test --locked --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --locked --release --target x86_64-pc-windows-msvc
+      - name: Observe synthetic dialogs
+        shell: pwsh
+        run: ./tests/windows-smoke.ps1 -Inspector ./target/x86_64-pc-windows-msvc/release/inspector.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inspector-windows-x64
+          path: target/x86_64-pc-windows-msvc/release/inspector.exe
+          if-no-files-found: error
