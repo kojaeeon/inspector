@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
@@ -31,3 +31,19 @@ jobs:
           name: inspector-windows-x64
           path: target/x86_64-pc-windows-msvc/release/inspector.exe
           if-no-files-found: error
+
+      - name: Package portable and publish verified build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force portable | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/inspector.exe portable/
+          Copy-Item README.md portable/
+          Set-Content -Encoding utf8 portable/SOURCE.txt "Source: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+          Compress-Archive -Path portable/* -DestinationPath inspector-windows-x64-portable.zip
+          $hash = (Get-FileHash inspector-windows-x64-portable.zip -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Encoding ascii SHA256SUMS.txt "$hash  inspector-windows-x64-portable.zip"
+          gh release create "dll-${{ github.sha }}" inspector-windows-x64-portable.zip SHA256SUMS.txt --target "${{ github.sha }}" --title "Inspector DLL tracing portable" --notes "Windows tests and synthetic dialog/DLL load-unload smoke test passed. Source commit: ${{ github.sha }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

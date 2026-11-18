@@ -26,8 +26,14 @@ unsafe extern "system" fn dismiss(_: Hwnd, _: u32, timer: usize, _: u32) {
     }
 }
 
+#[link(name = "kernel32")]
+extern "system" {
+    fn LoadLibraryW(path: *const u16) -> *mut c_void;
+    fn FreeLibrary(module: *mut c_void) -> i32;
+}
+
 fn main() {
-    for _ in 0..2 {
+    for index in 0..2 {
         unsafe {
             let timer = SetTimer(null_mut(), 0, 600, Some(dismiss));
             assert_ne!(timer, 0);
@@ -43,5 +49,16 @@ fn main() {
             KillTimer(null_mut(), timer);
         }
         thread::sleep(Duration::from_millis(250));
+        if index == 0 {
+            if let Some(path) = std::env::args().nth(1) {
+                unsafe {
+                    let module = LoadLibraryW(wide(&path).as_ptr());
+                    assert!(!module.is_null());
+                    thread::sleep(Duration::from_millis(1100));
+                    assert_ne!(FreeLibrary(module), 0);
+                    thread::sleep(Duration::from_millis(1100));
+                }
+            }
+        }
     }
 }

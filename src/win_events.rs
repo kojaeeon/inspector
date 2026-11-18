@@ -232,7 +232,7 @@ impl Drop for Registration {
     }
 }
 
-pub fn watch(duration: Duration, path: &Path) -> io::Result<()> {
+pub fn watch(duration: Duration, path: &Path, dll: bool, pids: &[u32]) -> io::Result<()> {
     let start = Instant::now();
     let utc_start_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -284,6 +284,13 @@ pub fn watch(duration: Duration, path: &Path) -> io::Result<()> {
     let mut output = File::create_new(path)?;
     let mut screen = io::stdout().lock();
     let mut summary = Summary::default();
+    let mut modules = dll.then(crate::modules::Tracker::new);
+    if let Some(modules) = &mut modules {
+        for &pid in pids {
+            modules.add(pid, process_name(pid), utc_start_ms, 0, &mut output, &mut screen)?;
+        }
+        writeln!(screen, "DLL sampling enabled (500ms): baseline/added/removed; full DLL paths are recorded.")?;
+    }
     let initial = unsafe { GetForegroundWindow() };
     if !initial.is_null() {
         CAPTURE.with(|state| {
@@ -317,13 +324,28 @@ pub fn watch(duration: Duration, path: &Path) -> io::Result<()> {
             report::write_event(&mut output, &event)?;
             report::print_event(&mut screen, &event)?;
             summary.record(&event);
+            if let Some(modules) = &mut modules {
+                if event.kind != Kind::DialogClosed {
+                    modules.add(event.pid, event.process.clone(), event.utc_ms, event.elapsed_ms, &mut output, &mut screen)?;
+                    if let Some(pid) = event.owner_pid {
+                        modules.add(pid, event.owner_process.clone(), event.utc_ms, event.elapsed_ms, &mut output, &mut screen)?;
+                    }
+                }
+            }
         }
+        if let Some(modules) = &mut modules {
+            let elapsed = start.elapsed().as_millis() as u64;
+            modules.poll(utc_start_ms + elapsed, elapsed, &mut output, &mut screen)?;
+        }
+        output.flush()?;
+        screen.flush()?;
         if start.elapsed() >= duration || STOP.load(Ordering::Relaxed) {
             break;
         }
         thread::sleep(Duration::from_millis(15));
     }
     writeln!(screen, "\nSaved to {}", path.display())?;
-    summary.print(screen)?;
+    summary.print(&mut screen)?;
+    if let Some(modules) = modules { modules.summary.print(screen)?; }
     Ok(())
 }

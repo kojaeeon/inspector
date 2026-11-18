@@ -157,12 +157,22 @@ impl Summary {
 
 pub fn summarize_file(path: &Path, mut output: impl Write) -> io::Result<()> {
     let mut summary = Summary::default();
+    let mut modules = crate::modules::ModuleSummary::default();
     for (index, line) in BufReader::new(File::open(path)?).lines().enumerate() {
         let line = line?;
         if line.trim().is_empty() {
             continue;
         }
-        let event = serde_json::from_str(&line).map_err(|error| {
+        let value: serde_json::Value = serde_json::from_str(&line).map_err(|error| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("invalid JSONL at line {}: {error}", index + 1))
+        })?;
+        if value.get("kind").and_then(|v| v.as_str()).is_some_and(|k| k.starts_with("module_")) {
+            let event = serde_json::from_value(value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("invalid module record at line {}: {e}", index + 1)))?;
+            crate::modules::print_event(&mut output, &event)?;
+            modules.record(&event);
+            continue;
+        }
+        let event = serde_json::from_value(value).map_err(|error| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("invalid JSONL at line {}: {error}", index + 1),
@@ -172,7 +182,8 @@ pub fn summarize_file(path: &Path, mut output: impl Write) -> io::Result<()> {
         summary.record(&event);
     }
     writeln!(output)?;
-    summary.print(output)
+    summary.print(&mut output)?;
+    modules.print(output)
 }
 
 #[cfg(test)]

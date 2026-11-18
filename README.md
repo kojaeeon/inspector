@@ -36,3 +36,36 @@ cargo build --locked --release --target x86_64-pc-windows-msvc
 ```
 
 스모크 테스트는 Office 없이 가상 `WINWORD.exe` 프로세스에서 표준 대화상자를 두 번 표시하고 한 번의 재표시가 집계되는지 확인합니다. Windows GitHub Actions에서 빌드된 실행 파일은 실행 결과의 `inspector-windows-x64` 아티팩트로 제공됩니다.
+
+## DLL 추적 (선택)
+
+```powershell
+# Office와 관련 창의 프로세스 및 소유 프로세스를 자동 추적
+.\inspector.exe watch --dll --duration 120 --out .\office-dll.jsonl
+.\inspector.exe summarize .\office-dll.jsonl
+
+# 인증창 이벤트가 잡히지 않으면 작업 관리자에서 확인한 PID 직접 지정
+# --pid는 반복 가능하며 --dll을 자동으로 켭니다.
+.\inspector.exe watch --pid 12676 --pid 17056 --duration 120 --out .\office-pids.jsonl
+```
+
+`--dll`을 켜면 Win32 ToolHelp 스냅샷으로 대상 프로세스의 DLL 전체 경로를 기록합니다.
+첫 성공 스캔은 `module_baseline`(이미 로드된 DLL), 이후 500ms 간격 비교는
+`module_added`/`module_removed`(관찰된 추가/제거), 프로세스 종료는 `module_process_exited`입니다.
+각 기록에 UTC/경과 시간, PID, 프로세스명, DLL 경로가 있으므로 인증창 시각과 비교할 수 있습니다.
+창 제목/내용, 키 입력, 비밀번호, 문서 본문, 프로세스 메모리는 읽지 않습니다.
+DLL 경로에는 사용자명과 설치 경로가 포함될 수 있습니다. 로그 공유 전 확인하세요.
+
+- 먼저 수집을 시작하고 문서를 여세요. 이미 로드된 DLL은 로드 시각을 알 수 없습니다.
+- 샘플링 사이에 로드/언로드된 짧은 DLL, 수동 매핑, 보호 프로세스는 누락될 수 있습니다.
+- DLL이 동시에 관찰됐다는 사실만으로 인증창 원인이나 DRM 제품으로 확정하지 않습니다.
+- 일반 사용자 권한으로 시작하세요. 접근 불가 시 `module_scan_error`와 Win32 오류 번호를 남기며 창 수집은 계속됩니다.
+  PID 직접 지정이 실패하면 권한/프로세스 상태를 확인하고 새 수집을 시작하세요.
+- 스캔 실패를 DLL 제거로 처리하지 않으며 같은 오류는 반복 출력하지 않습니다.
+- 대상 프로세스 핸들을 유지하여 PID 재사용을 다른 프로세스로 이어서 추적하지 않습니다.
+  한 세션에서 최대 32개 PID를 시도합니다. 초과 PID는 `module_target_limit`으로 표시합니다.
+- 프로세스 주입/디버거 부착/보안 설정 변경 없이 모듈 목록만 읽습니다. 기본 watch는 기존처럼 DLL 수집을 하지 않습니다.
+- 기존 창 전용 JSONL도 새 summarize에서 그대로 읽을 수 있습니다.
+
+Windows CI는 가상 WINWORD.exe에서 테스트 DLL을 실제 로드/해제하여 baseline·추가·제거 이벤트와
+기존 인증창 2회/재표시 집계를 함께 검사합니다. 회사 Office/DRM 환경은 별도 재현이 필요합니다.

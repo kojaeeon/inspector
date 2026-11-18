@@ -1,4 +1,5 @@
 mod report;
+mod modules;
 #[cfg(windows)]
 mod win_events;
 
@@ -12,7 +13,7 @@ use std::{
 };
 
 const USAGE: &str = "Usage:
-  inspector watch [--duration SECONDS] [--out NEW_FILE]
+  inspector watch [--duration SECONDS] [--out NEW_FILE] [--dll] [--pid PID]
   inspector summarize FILE
 
 Defaults: --duration 120 --out office-auth.jsonl
@@ -35,7 +36,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         Some("watch") => {
             let mut seconds = None;
             let mut out = None;
+            let mut dll = false;
+            let mut pids = Vec::new();
             while let Some(flag) = args.next() {
+                if flag == "--dll" { dll = true; continue; }
                 let value = args.next().ok_or("missing option value")?;
                 match flag.to_str() {
                     Some("--duration") if seconds.is_none() => {
@@ -46,6 +50,12 @@ fn run() -> Result<(), Box<dyn Error>> {
                             .ok_or("duration must be a whole number from 1 to 3600")?;
                         seconds = Some(count);
                     }
+                    Some("--pid") => {
+                        let pid = value.to_str().and_then(|v| v.parse::<u32>().ok()).filter(|p| *p > 0).ok_or("PID must be a positive integer")?;
+                        if !pids.contains(&pid) { pids.push(pid); }
+                        if pids.len() > 32 { return Err("at most 32 explicit PIDs are supported".into()); }
+                        dll = true;
+                    }
                     Some("--out") if out.is_none() => out = Some(PathBuf::from(value)),
                     _ => return Err(format!("unknown or repeated option: {:?}", flag).into()),
                 }
@@ -53,6 +63,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             watch(
                 Duration::from_secs(seconds.unwrap_or(120)),
                 &out.unwrap_or_else(|| PathBuf::from("office-auth.jsonl")),
+                dll, &pids,
             )
         }
         Some("summarize") => {
@@ -76,12 +87,12 @@ fn run() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(windows)]
-fn watch(duration: Duration, path: &Path) -> Result<(), Box<dyn Error>> {
-    win_events::watch(duration, path)?;
+fn watch(duration: Duration, path: &Path, dll: bool, pids: &[u32]) -> Result<(), Box<dyn Error>> {
+    win_events::watch(duration, path, dll, pids)?;
     Ok(())
 }
 
 #[cfg(not(windows))]
-fn watch(_duration: Duration, _path: &Path) -> Result<(), Box<dyn Error>> {
+fn watch(_duration: Duration, _path: &Path, _dll: bool, _pids: &[u32]) -> Result<(), Box<dyn Error>> {
     Err("watch requires Windows; summarize can read an existing capture here".into())
 }
