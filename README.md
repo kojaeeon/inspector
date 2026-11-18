@@ -84,3 +84,18 @@ Remove-Item Env:OFFICE_AUTH_PASSWORD
 ```
 
 Avoid persistent machine/user environment variables for passwords. For production, prefer Windows Credential Manager or a supported SSO fix. This helper is not a substitute for the server-side authentication repair.
+
+## Continuous auth helper (experimental)
+
+`auth_helper.exe` continuously checks whether Excel, Word, or PowerPoint is running and whether the foreground window title contains both `Windows Security` (or `Windows 보안`) and the configured `OFFICE_AUTH_TARGET`. Only then does it type `OFFICE_AUTH_USER`, Tab, and `OFFICE_AUTH_PASSWORD`; it never presses Enter or clicks Confirm. It needs the username field already focused. Passwords are not logged.
+
+**Important limitation:** Many Windows Security / XAML credential prompts display the server only in their body, not in the top-level window title. In those cases this helper intentionally does nothing. It does not yet inspect UI Automation child elements or prove server identity, and therefore is not a verified solution for the reported corporate prompt. Test only with an approved account and dialog. Synthetic input may be blocked by Windows security boundaries.
+
+```powershell
+$env:OFFICE_AUTH_USER = 'approved-user'
+$env:OFFICE_AUTH_PASSWORD = Read-Host 'Password'
+$env:OFFICE_AUTH_TARGET = 'scadmin.standardchartered.co.kr'
+.\auth_helper.exe
+```
+
+The startup installer currently launches the **inspector event monitor only**, not the credential helper. Do not configure unattended credential input until the actual dialog can be identified reliably.
