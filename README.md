@@ -99,3 +99,17 @@ $env:OFFICE_AUTH_TARGET = 'scadmin.standardchartered.co.kr'
 ```
 
 The startup installer currently launches the **inspector event monitor only**, not the credential helper. Do not configure unattended credential input until the actual dialog can be identified reliably.
+
+### UI Automation credential helper (Windows PowerShell 5.1)
+
+The portable archive includes `office-auth-uia.ps1`. This is the **UI-element inspection** implementation; it is separate from the older Rust `auth_helper.exe` which only checks window titles.
+
+```powershell
+$env:OFFICE_AUTH_USER = 'YOUR_ACCOUNT'
+$env:OFFICE_AUTH_PASSWORD = Read-Host 'Office authentication password'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\office-auth-uia.ps1
+```
+
+The helper runs until Ctrl+C. It checks for a running Office application, then inspects the foreground Windows Security dialog's descendant UI Automation Text/Hyperlink names. It requires an exact `scadmin.standardchartered.co.kr` hostname token, a non-password Edit control, and an `IsPassword` Edit control with writable ValuePattern. It fills those controls once per foreground window, without pressing Enter or clicking Confirm. **If Windows does not expose the hostname or the password ValuePattern, no automatic input occurs.** This does not establish cryptographic server identity. Do not persist the password in system-wide environment variables.
+
+This script has not been tested against the real corporate authentication dialog. The existing startup installer launches the event monitor only, not this script.
