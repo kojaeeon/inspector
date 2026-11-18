@@ -16,7 +16,7 @@ const USAGE: &str = "Usage:
   inspector watch [--duration SECONDS] [--out NEW_FILE] [--dll] [--pid PID]
   inspector summarize FILE
 
-Defaults: --duration 120 --out office-auth.jsonl
+Defaults: --duration 120 --out office-auth.jsonl\nContinuous: --continuous (runs until Ctrl+C)
 Duration: 1–3600 seconds. Existing output files are preserved.";
 
 fn main() -> ExitCode {
@@ -36,10 +36,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         Some("watch") => {
             let mut seconds = None;
             let mut out = None;
-            let mut dll = false;
+            let mut dll = false;\n            let mut continuous = false;
             let mut pids = Vec::new();
             while let Some(flag) = args.next() {
-                if flag == "--dll" { dll = true; continue; }
+                if flag == "--dll" { dll = true; continue; }\n                if flag == "--continuous" { continuous = true; continue; }
                 let value = args.next().ok_or("missing option value")?;
                 match flag.to_str() {
                     Some("--duration") if seconds.is_none() => {
@@ -61,7 +61,7 @@ fn run() -> Result<(), Box<dyn Error>> {
                 }
             }
             watch(
-                Duration::from_secs(seconds.unwrap_or(120)),
+                Duration::from_secs(if continuous { 0 } else { seconds.unwrap_or(120) }),
                 &out.unwrap_or_else(|| PathBuf::from("office-auth.jsonl")),
                 dll, &pids,
             )
