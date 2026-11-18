@@ -69,3 +69,18 @@ DLL 경로에는 사용자명과 설치 경로가 포함될 수 있습니다. �
 
 Windows CI는 가상 WINWORD.exe에서 테스트 DLL을 실제 로드/해제하여 baseline·추가·제거 이벤트와
 기존 인증창 2회/재표시 집계를 함께 검사합니다. 회사 Office/DRM 환경은 별도 재현이 필요합니다.
+
+## Optional credential helper (manual confirmation)
+
+This is a separate executable, not an unattended keylogger or authentication bypass.
+It reads `OFFICE_AUTH_USER` and `OFFICE_AUTH_PASSWORD` from the current process environment, requires typing `YES`, then waits 5 seconds for the operator to focus the intended Windows Security dialog with an **empty username field**. It refuses to type unless the foreground window title contains `Windows Security` or `Windows 보안`. It types username, Tab, password, Enter. It does **not** verify the target server or authentication success, so use only with an explicitly confirmed intended dialog and an approved test account. Windows may block synthetic input to protected credential dialogs. It does not store or print credentials.
+
+```powershell
+$env:OFFICE_AUTH_USER = "approved-user"
+$env:OFFICE_AUTH_PASSWORD = Read-Host "Password"
+cargo build --release --bin auth_helper
+.\target\release\auth_helper.exe
+Remove-Item Env:OFFICE_AUTH_PASSWORD
+```
+
+Avoid persistent machine/user environment variables for passwords. For production, prefer Windows Credential Manager or a supported SSO fix. This helper is not a substitute for the server-side authentication repair.
