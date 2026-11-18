@@ -32,6 +32,7 @@ jobs:
           path: |
             target/x86_64-pc-windows-msvc/release/inspector.exe
             target/x86_64-pc-windows-msvc/release/auth_helper.exe
+            target/x86_64-pc-windows-msvc/release/office_auth.exe
           if-no-files-found: error
 
       - name: Package portable and publish verified build
@@ -43,6 +44,7 @@ jobs:
           New-Item -ItemType Directory -Force portable | Out-Null
           Copy-Item target/x86_64-pc-windows-msvc/release/inspector.exe portable/
           Copy-Item target/x86_64-pc-windows-msvc/release/auth_helper.exe portable/
+          Copy-Item target/x86_64-pc-windows-msvc/release/office_auth.exe portable/
           Copy-Item scripts/install-startup.ps1 portable/
           Copy-Item scripts/office-auth-uia.ps1 portable/
           Copy-Item README.md portable/
