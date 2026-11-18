@@ -301,7 +301,7 @@ pub fn watch(duration: Duration, path: &Path, dll: bool, pids: &[u32]) -> io::Re
     }
     writeln!(
         screen,
-        "Watching for {} seconds. Reproduce the prompt now. Ctrl+C stops capture.",
+        "Watching for {} seconds (0 = continuous). Ctrl+C stops capture.",
         duration.as_secs()
     )?;
     loop {
@@ -312,7 +312,7 @@ pub fn watch(duration: Duration, path: &Path, dll: bool, pids: &[u32]) -> io::Re
                 break;
             }
             unsafe { DispatchMessageW(&message) };
-            if start.elapsed() >= duration || STOP.load(Ordering::Relaxed) {
+            if (duration != Duration::ZERO && start.elapsed() >= duration) || STOP.load(Ordering::Relaxed) {
                 break;
             }
         }
@@ -339,7 +339,7 @@ pub fn watch(duration: Duration, path: &Path, dll: bool, pids: &[u32]) -> io::Re
         }
         output.flush()?;
         screen.flush()?;
-        if start.elapsed() >= duration || STOP.load(Ordering::Relaxed) {
+        if (duration != Duration::ZERO && start.elapsed() >= duration) || STOP.load(Ordering::Relaxed) {
             break;
         }
         thread::sleep(Duration::from_millis(15));
